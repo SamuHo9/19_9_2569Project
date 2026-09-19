@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "checks": {
+    "numpy": true,
+    "scipy.ndimage": true,
+    "scipy.special": true,
+    "vtk": true,
+    "segpostprocessclp": true,
+    "genparameshclp": true,
+    "paratospharmmeshclp": true
+  },
+  "python": "3.9.10 (main, May  1 2025, 15:29:45) [MSC v.1942 64 bit (AMD64)]",
+  "scope": "Runtime imports and CLI module registration; no MRI processing performed"
+}
