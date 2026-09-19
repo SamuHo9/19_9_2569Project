@@ -1,0 +1,29 @@
+#!/bin/bash
+
+FASTSURFER_HOME="<fastsurfer_home_dir>"
+PYTHON="python<python_version>"
+SCRIPT_DIR="$(dirname $0)"
+
+if [[ ! -d "$FASTSURFER_HOME/venv" ]]
+then
+  echo "Creating FastSurfer run environment"
+  "<homebrew_dir>/bin/$PYTHON" -m venv --copies "$FASTSURFER_HOME/venv"
+fi
+
+source "$FASTSURFER_HOME/venv/bin/activate"
+"$PYTHON" -m pip install --upgrade pip
+"$PYTHON" -m pip install -r "$FASTSURFER_HOME/requirements.mac.txt"
+
+export PYTHONPATH="${FASTSURFER_HOME}:${PYTHONPATH}"
+"$PYTHON" "$FASTSURFER_HOME/FastSurferCNN/download_checkpoints.py" --all
+
+FREESURFER_HOME="/Applications/freesurfer"
+"$SCRIPT_DIR/link_fs.sh" "$FREESURFER_HOME"
+
+# use our python (not really needed in recon-all anyway)
+# TODO: soft-linking python has proven to break the python installation for the docker container
+ln -sf "$FASTSURFER_HOME/venv/bin/$PYTHON" "$FREESURFER_HOME/bin/fspython"
+
+sed -i '' -e "s|(venv)|($(basename $FASTSURFER_HOME))|g" "$FASTSURFER_HOME/venv/bin/activate"
+
+xattr -dr com.apple.quarantine "$FREESURFER_HOME"/*

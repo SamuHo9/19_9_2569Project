@@ -1,0 +1,37 @@
+name: AUTO code-style
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number }}-${{ github.event.ref }}
+  cancel-in-progress: true
+on:
+  pull_request:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+jobs:
+  style:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: 'src'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.10'
+      - name: Run Ruff
+        run: uv run --project src --extra style ruff check src
+      - name: Run codespell
+        uses: codespell-project/actions-codespell@master
+        with:
+          check_filenames: true
+          check_hidden: true
+          skip: 'src/build,src/doc/images,src/Tutorial,src/.git,src/.mypy_cache,src/.pytest_cache,src/.venv'
+          ignore_words_file: src/.codespellignore
+          path: 'src'
+#      - name: Run pydocstyle
+#        run: pydocstyle .
+#      - name: Run bibclean
+#        run: bibclean-check doc/references.bib

@@ -1,0 +1,12 @@
+raw_package/
+installer/
+*.pkg
+*.gz
+
+.eggs
+build
+scripts/postinstall
+scripts_intell/postinstall
+dist/
+resources/
+FastSurferPackageContent/

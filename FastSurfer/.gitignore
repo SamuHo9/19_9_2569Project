@@ -1,0 +1,18 @@
+/BUILD.info
+/tools/Docker/BUILD.info
+/tools/Docker/custom-ssl.crt
+/.idea/**
+/rough_work/**
+/doc-build/**
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*/stub
+
+.DS_Store
+.venv/**
+fastsurfer.egg-info
+uv.lock
+/doc/api/generated/

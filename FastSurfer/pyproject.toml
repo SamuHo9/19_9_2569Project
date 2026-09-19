@@ -1,0 +1,173 @@
+[build-system]
+requires = ['setuptools >= 61.0.0']
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'fastsurfer'
+version = '2.5.0-dev'
+description = 'A fast and accurate deep-learning based neuroimaging pipeline'
+readme = 'README.md'
+license = {file = 'LICENSE'}
+requires-python = '>=3.10'
+authors = [{name = 'Martin Reuter et al.'}]
+maintainers = [{name = 'FastSurfer Developers'}]
+keywords = [
+    'python',
+    'Deep learning',
+    'Segmentation',
+    'Brain segmentation',
+    'Brain analysis',
+    'volumetry',
+]
+classifiers = [
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: Unix',
+    'Operating System :: MacOS',
+    'Programming Language :: Python :: 3 :: Only',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Natural Language :: English',
+    'License :: OSI Approved :: Apache Software License',
+    'Intended Audience :: Science/Research',
+]
+dependencies = [
+    'h5py>=3.7',
+    'lapy>=1.5.0',
+    'matplotlib>=3.7.1',
+    'meshpy>=2025.1.1', # needed for FastSurfer-CC
+    'monai>=1.4.0', # needed for FastSurfer-CC
+    'nibabel>=5.1.0',
+    'numpy>=1.25',
+    'packaging',
+    'pandas>=1.5.3',
+    'pip>=25.0',
+    'pyrr>=0.10.3', # needed for FastSurfer-CC
+    'pyyaml>=6.0',
+    'requests>=2.31.0',
+    'scikit-image>=0.19.3',
+    'scikit-learn>=1.2.2',
+    'scipy>=1.10.1,!=1.13.0',
+    'simpleitk>=2.2.1',
+    'tensorboard>=2.12.1',
+    'torch==2.7.*', # pinned to 2.7, so compatibility to CUDA 11 is ensured for same torch version
+    'torchio>=0.18.83',
+    'torchvision>=0.22.1,<0.23',
+    'tqdm>=4.65',
+    'yacs>=0.1.8',
+]
+
+[project.optional-dependencies]
+qc  = [
+    'whippersnappy>=2.1',
+]
+doc = [
+    'fastsurfer[qc]',
+    'furo!=2023.8.17',
+    'memory-profiler',
+    'myst-parser',
+    'numpydoc',
+    # sphinx 8 handles importing of files differently in some manner and will cause the
+    # build of the doc to fail. This will need to be addressed before we up to sphinx 8.
+    'sphinx>=7.3,<8',
+    'sphinxcontrib-bibtex',
+    'sphinxcontrib-programoutput',
+    'sphinx-argparse',
+    'sphinx-copybutton',
+    'sphinx-design',
+    'sphinx-gallery',
+    'sphinx-issues',
+    'pypandoc',
+    'nbsphinx',
+    'IPython', # For syntax highlighting in notebooks
+    'ipykernel',
+]
+style = [
+    'bibclean',
+    'codespell',
+    'pydocstyle[toml]',
+    'ruff',
+]
+quicktest = [
+    'pytest>=8.2.2',
+]
+all = [
+    'fastsurfer[doc]',
+    'fastsurfer[style]',
+    'fastsurfer[qc]',
+    'fastsurfer[quicktest]',
+]
+full = [
+    'fastsurfer[all]',
+]
+
+[project.urls]
+homepage = 'https://fastsurfer.org'
+documentation = 'https://fastsurfer.org'
+source = 'https://github.com/Deep-MI/FastSurfer'
+tracker = 'https://github.com/Deep-MI/FastSurfer/issues'
+
+[tool.freesurfer]
+version = "7.4.1"
+# The following URLs use the {version} placeholder, which should be replaced
+# with the actual version string using Python's .format(version=...).
+[tool.freesurfer.urls]
+linux = "https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/{version}/freesurfer-linux-ubuntu22_amd64-{version}.tar.gz"
+macOS = "https://surfer.nmr.mgh.harvard.edu/pub/dist/freesurfer/{version}/freesurfer-macOS-darwin_x86_64-{version}.tar.gz"
+
+[tool.setuptools]
+packages = ['FastSurferCNN','CerebNet','recon_surf','HypVINN']
+
+[tool.pydocstyle]
+convention = 'numpy'
+ignore-decorators = '(copy_doc|property|.*setter|.*getter|pyqtSlot|Slot)'
+match = '^(?!setup|__init__|test_).*\.py'
+match-dir = '^FastSurferCNN.*,^CerebNet.*,^recon-surf.*,^HypVINN.*'
+add_ignore = 'D100,D104,D107'
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = [
+    "build",
+    "checkpoints",
+    "doc",
+    "env",
+]
+
+[tool.ruff.lint]
+# https://docs.astral.sh/ruff/linter/#rule-selection
+select = [
+    "E",   # pycodestyle
+    "F",   # Pyflakes
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "I",   # isort
+    # "SIM", # flake8-simplify
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"Tutorial/*.ipynb" = ["E501"]  # exclude "Line too long"
+"FastSurferCNN/utils/logging.py" = ["F401"]  # exclude "Imported but unused"
+"FastSurferCNN/utils/parser_defaults.py" = ["F401"]  # exclude "Imported but unused"
+
+[tool.pytest.ini_options]
+minversion = '6.0'
+addopts = '--durations 20 --junit-xml=junit-results.xml --verbose'
+filterwarnings = []
+
+[tool.coverage.run]
+branch = true
+cover_pylib = false
+omit = [
+    '**/__init__.py',
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:',
+]
+precision = 2

@@ -1,0 +1,331 @@
+
+# set the binpath variable
+if [[ -z "$FASTSURFER_HOME" ]] ; then binpath="$( cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 ; pwd -P )/"
+else binpath="$FASTSURFER_HOME/recon_surf/"
+fi
+export binpath
+
+# fs_time command from fs60, fs72 fails in parallel mode, use local one
+# also check for failure (e.g. on mac it fails, so we cannot use it there)
+if "${binpath}fs_time" --no-load echo testing &> /dev/null ; then timecmd="${binpath}fs_time"
+else timecmd="" ; echo "INFO: Testing fs_time was not successful, not reporting per-command runtimes."
+fi
+export timecmd
+
+if [[ "$(locale decimal_point)" != "." ]] ; then export LC_NUMERIC="en_US.UTF-8" ; fi
+if [[ "$(locale decimal_point)" != "." ]] ; then
+  echo "WARNING: Could not change \$LC_NUMERIC, but FastSurfer requires decimal_point=., please configure your locale"
+  echo "  to use a '.' decimal_point, e.g. export LC_NUMERIC=en_US.UTF-8 !"
+fi
+
+function check_create_subjects_dir_properties()
+{
+  # 1: subjects_dir
+  if [[ -z "$1" ]]
+  then
+    echo "ERROR: No subject directory defined via --sd. This is required!"
+    exit 1
+  elif [[ ! -d "$1" ]]
+  then
+    echo "INFO: The subject directory did not exist, creating it now."
+    if [[ "$(id -u)" == 0 ]] ; then echo "WARNING: Creating as root!" ; fi
+    if ! mkdir -p "$1" ; then echo "ERROR: directory creation failed" ; exit 1; fi
+  else
+    if stat --version > /dev/null 2> /dev/null ; then # linux (GNU version of stat, supports --version)
+      user_group=$(stat -c "%u:%g" "$1")
+      world_access=$(stat -c "%a" "$1" | tail -c 2)
+    else # macOS (BSD version of stat)
+      user_group=$(stat -f "%u:%g" "$1")
+      world_access=$(stat -f "%p" "$1" | tail -c 2)
+    fi
+    if [[ "$user_group" == "0:0" ]] && [[ "$(id -u)" != "0" ]] && [[ "$world_access" -lt 6 ]]
+    then
+      echo "ERROR: The subject directory ($1) is owned by root and is not writable."
+      echo "  FastSurfer cannot write results! This can happen if the directory is created"
+      echo "  by docker. Make sure to create the directory before invoking docker!"
+      exit 1
+    fi
+  fi
+}
+
+function time_it()
+{
+  # parameters
+  # $1 : timing file
+  # $* : cmd  (command to run)
+
+  # wraps cmd with fs_time, but fs_time's timing information (the output of fs_time) is stored to the
+  # timing file ($1) instead of stdout. If cmd is using fs_time itself, the FSLOAD environment variable
+  # is read and the appropriate --load/--no-load argument is passed to fs_time inside cmd.
+  local TF="$1"
+  shift
+  local cmd=("$@")
+  if [[ -n "$timecmd" ]]
+  then
+    timecmd_pos=-1
+    for (( i=0; i<${#cmd[@]}; i++)) ; do if [ "${cmd[i]}" == "$timecmd" ]; then timecmd_pos=$i ; break ; fi ; done
+    if [ "$timecmd_pos" -gt -1 ] ; then
+      if [[ "$FSLOAD" == 1 ]] ; then a="--load" ; else a="--no-load" ; fi
+      cmd=("${cmd[@]:0:$timecmd_pos}" "$a" "${cmd[@]:$timecmd_pos}")
+    fi
+    # timecmd is non-empty here, so time/fs_time does not fail
+    printf -v key "%s\n-> " "$(echo_quoted "${cmd[@]}")"
+    "${binpath}fs_time" -k "$key" --no-load -o "$TF" -a "${cmd[@]}"
+  else
+    echo "WARNING: Using time_it, but time seems to fail. Not timing..."
+    "${cmd[@]}"
+  fi
+  if [[ "${PIPESTATUS[0]}" != 0 ]] ; then exit "${PIPESTATUS[0]}" ; fi
+}
+
+function RunIt()
+{
+  # parameters
+  # $1 : cmd  (command to run)
+  # $2 : LF   (log file)
+  # $3 : CMDF (command file) optional
+  # if CMDF is passed, then LF is ignored and cmd is echoed into CMDF and not run
+  local cmd=$1
+  local LF=$2
+  if [[ $# -eq 3 ]]
+  then
+    local CMDF=$3
+    run_it_cmdf "$LF" "$CMDF" $cmd
+  else
+    run_it "$LF" $cmd
+    if [[ "${PIPESTATUS[0]}" != 0 ]] ; then exit 1 ; fi
+  fi
+}
+
+function run_it()
+{
+  # parameters
+  # $1 : LF   (log file)
+  # $@ : cmds (command to run)
+  local LF=$1
+  shift
+  echo_quoted "$@" | tee -a "$LF"
+  $timecmd "$@" 2>&1 | tee -a "$LF"
+  if [[ "${PIPESTATUS[0]}" != 0 ]] ; then exit 1 ; fi
+}
+
+function run_it_cmdf()
+{
+  # parameters
+  # $1 : LF   (log file)
+  # $2 : CMDF (command file)
+  # $@ : cmds (command to run)
+  local LF=$1
+  local CMDF=$2
+  shift
+  shift
+  local cmd
+  cmd="$(echo_quoted "$@" | tee -a "$LF")"
+  printf -v tmp %q "$cmd"
+  echo "echo $tmp" | tee -a "$CMDF"
+  echo "$timecmd $cmd" | tee -a "$CMDF"
+  echo "if [[ \${PIPESTATUS[0]} != 0 ]] ; then exit 1 ; fi" >> "$CMDF"
+}
+
+function RunBatchJobs()
+{
+  # parameters
+  # $1 : LF
+  # $2 ... : CMDFS
+  # launch jobs found in command files (shift past first logfile arg).
+  # job output goes to a logfile named after the command file, which
+  # later gets appended to LOG_FILE
+
+  local LOG_FILE=$1
+
+  echo
+  echo "RunBatchJobs: Logfile: $LOG_FILE"
+
+  local PIDS=()
+  local LOGS=()
+  local CMDFS=()
+  shift
+  local JOB
+  local LOG
+  for cmdf in "$@"; do
+    echo "RunBatchJobs: CMDF: $cmdf"
+    chmod u+x "$cmdf"
+    JOB="$cmdf"
+    LOG="$cmdf.log"
+    printf "\n %s\n\n" "$JOB" > "$LOG"
+    exec "$JOB" >> "$LOG" 2>&1 &
+    PIDS+=("$!")
+    CMDFS+=("$JOB")
+    LOGS+=("$LOG")
+  done
+
+  # wait till all processes have finished
+  local unsuccessful=()
+  for i in $(seq "${#PIDS[@]}")
+  do
+    echo "Waiting for PID ${PIDS[i-1]} of (${PIDS[*]}) to complete..."
+    wait "${PIDS[i-1]}"
+    status="$?"
+    # now append their logs to the main log file
+    tee -a "$LOG_FILE" < "${LOGS[i-1]}"
+    rm -f "${LOGS[i-1]}"
+    if [[ "$status" != "0" ]]
+    then
+      unsuccessful+=($((i - 1)))
+      {
+        echo "ERROR: The script ${CMDFS[i-1]} (PID: ${PIDS[i-1]}) did not complete successfully!"
+        echo "========================================"
+        echo ""
+      } | tee -a "$LOG_FILE"
+    fi
+  done
+  # and check for failures
+  if [[ "${#unsuccessful}" == 0 ]]
+  then
+    echo "PIDs (${PIDS[*]}) completed successfully! Their logs have been appended." | tee -a "$LOG_FILE"
+  else
+    echo "PIDs (${unsuccessful[*]}) of (${PIDS[*]}) have NOT completed successfully! All logs appended." | \
+      tee -a "$LOG_FILE"
+    exit 1
+  fi
+}
+
+function check_allow_root()
+{
+  # Will check, if --allow_root is in arguments (to this function) and print an error message
+  # as well as exit.
+  # Examples:
+  # check_allow_root --arg 0 -> message and exit
+  #
+  # If you want a script to check for allow_root, run `check_allow_root "$@"` inside that script
+  # some_script_which_calls_check_allow_root_without_parameters --flag -> message and exit
+  #
+  # ```
+  # ...
+  # check_allow_root "$@"
+  # ...
+  # ```
+
+  local allow_root="false"
+  for arg in "$@" ; do if [[ "$arg" == "--allow_root" ]] ; then allow_root="true"; break ; fi ; done
+
+  if [[ "$(id -u)" == "0" ]]
+  then
+    if [[ "$allow_root" == "true" ]] ; then LABEL="WARNING" ; else LABEL="ERROR" ; fi
+    echo "$LABEL: You are trying to run '$(basename "$BASH_ARGV0")' as root. We recommend to avoid"
+    echo "  running FastSurfer as root, because it will lead to files and folders created as root."
+    echo "  If you are running FastSurfer in a docker container, you can specify the user"
+    echo "  with '-u \$(id -u):\$(id -g)' (see https://docs.docker.com/engine/reference/run/#user)."
+    if [[ "$allow_root" != "true" ]]; then
+      echo "  If you want to force running as root, you may pass --allow_root to $(basename "$BASH_ARGV0")."
+      exit 1
+    fi
+  fi
+}
+
+function softlink_or_copy()
+{
+  # Creates a symlink at file pointing to target; if that fails, for example because symlinks are not supported by the
+  # file system, copy the file instead. The baseline call is `ln -sf $1 $2 >> $3`.
+  # params
+  # 1: link target (or file copy source) -> path to target of link / absolute or relative but relative to **file**!!
+  # 2: link (or file copy destination) -> path to link file / absolute or relative to cwd
+  # 3: logfile
+  # 4: cmdf
+  local LF="$3" link_tgt_cp_src="$1" link_cp_dest="$2"
+  if [[ $# -lt 3 ]] || [[ -z "$LF" ]] ; then echo "WARNING: Parameter 3 of softlink_or_copy missing!" ; fi
+  local ln_cmd=(ln -sf "$link_tgt_cp_src" "$link_cp_dest")
+  if [[ $# -eq 4 ]]
+  then
+    local CMDF=$4
+    {
+      echo "echo $(echo_quoted "${ln_cmd[@]}")"
+      echo "$timecmd $(echo_quoted "${ln_cmd[@]}")"
+      echo "if [[ \${PIPESTATUS[0]} != 0 ]]"
+      echo "then"
+      if [[ "$link_tgt_cp_src" != /* ]] ; then # relative path, defined with respect to $link_cp_dest
+        echo "  src=\$(dirname $(echo_quoted "$link_cp_dest"))/$(echo_quoted "$link_tgt_cp_src")"
+      else
+        echo "  src=$(echo_quoted "$link_tgt_cp_src")"
+      fi
+      echo "  echo \"cp \\\"\$src\\\" $(echo_quoted "$link_cp_dest")\""
+      echo "  $timecmd cp \"\$src\" $(echo_quoted "$link_cp_dest")"
+      echo "  if [[ \${PIPESTATUS[0]} != 0 ]] ; then exit 1 ; fi"
+      echo "fi"
+    } | tee -a "$CMDF"
+  else
+    {
+      echo_quoted "${ln_cmd[@]}"
+      $timecmd "${ln_cmd[@]}" 2>&1
+      if [[ "${PIPESTATUS[0]}" != 0 ]]
+      then
+        if [[ "$link_tgt_cp_src" != /* ]] ; then link_tgt_cp_src="$(dirname "$2")/$link_tgt_cp_src" ; fi # relative path
+        echo_quoted "cp" "$link_tgt_cp_src" "$link_cp_dest"
+        $timecmd "cp" "$link_tgt_cp_src" "$link_cp_dest" 2>&1
+        if [[ "${PIPESTATUS[0]}" != 0 ]] ; then exit 1 ; fi
+      fi
+    } | tee -a "$LF"
+    if [[ "${PIPESTATUS[0]}" != 0 ]]; then exit 1; fi # forward subshell exit to main script
+  fi
+}
+
+function relative_to()
+{
+  # Generate a relative path from $2 to $3, so `ln -s $(relative_to python /path/src /path/target) /path/src` is valid.
+  # params
+  # $1: python executable
+  # $2: base path whose directory is used as the starting point (e.g., the link path; start dir is dirname($2))
+  # $3: target path to compute the relative path to (normal shell quoting is allowed)
+  script=('import sys, os'
+          'base, target = sys.argv[sys.argv.index("-c")+1:]'
+          'print(os.path.relpath(target, start=os.path.dirname(base)))')
+  $1 -c "$(printf "%s\n" "${script[@]}")" "$2" "$3"
+}
+
+function echo_quoted()
+{
+  # params ... 1-N
+  sep=""
+  for i in "$@"
+  do
+    if [[ "${i/ /}" != "$i" ]] ; then j="%q" ; else j="%s" ; fi
+    printf "%s$j" "$sep" "$i"
+    sep=" "
+  done
+  echo ""
+}
+
+function add_file_suffix()
+{
+  # params:
+  # 1: filename
+  # 2: suffix to add
+
+  # example: add_file_suffix /path/to/file.nii.gz suffix -> /path/to/file.suffix.nii.gz
+
+  # file extensions supported:
+  file_extensions=(nii.gz nii mgz stats annot ctab label log txt lta xfm yaml)
+  for extension in "${file_extensions[@]}"
+  do
+    pattern="\.${extension//./\\.}$"
+    if [[ "$1" =~ $pattern ]]
+    then
+      length=$((${#1} - ${#extension}))
+      echo "${1:0:$length}$2.$extension"
+    fi
+  done
+}
+
+
+function check_is_template()
+{
+  # params:
+  # 1: subjects_dir
+  # 2: subject_if
+  if [ ! -f "$1/$2/base-tps.fastsurfer" ] ; then
+    echo "ERROR: $2 is either not found in \$SUBJECTS_DIR or it is not a longitudinal template"
+    echo "  directory (base), which needs to contain base-tps.fastsurfer file. Please ensure that"
+    echo "  the base (template) has been created with long_prepare_template.sh."
+    exit 1
+  fi
+}
