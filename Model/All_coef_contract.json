@@ -1,0 +1,20 @@
+{
+  "version": "original-coef-no-pls-v1",
+  "cohorts": [
+    "All_coef",
+    "All_coef_Ds004469",
+    "All_coef_Ds005602"
+  ],
+  "sides": [
+    "left",
+    "right"
+  ],
+  "splits": [
+    "train",
+    "test"
+  ],
+  "features": "Coef_1..Coef_507",
+  "pls_da_applied_to_model_input": false,
+  "balanced_split_excluded": true,
+  "test_policy": "original-only; never used for preprocessing, tuning, threshold selection, or early stopping"
+}

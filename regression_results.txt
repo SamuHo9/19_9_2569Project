@@ -1,0 +1,31 @@
+test_all_training_entry_points_use_contract_and_parse (test_pipeline_regressions.DataContractTests) ... ok
+test_archived_reports_stop_before_overwriting_historical_evidence (test_pipeline_regressions.DataContractTests) ... ok
+test_augmentation_is_local_to_fit_and_same_class (test_pipeline_regressions.DataContractTests) ... ok
+test_explicit_label_metadata_overrides_filename_heuristics (test_pipeline_regressions.DataContractTests) ... ok
+test_mixed_feature_provenance_is_rejected (test_pipeline_regressions.DataContractTests) ... ok
+test_real_cohorts_match_xyz_coefficients_and_have_disjoint_subjects (test_pipeline_regressions.DataContractTests) ... ok
+test_unknown_and_preaugmented_labels_are_rejected (test_pipeline_regressions.DataContractTests) ... ok
+test_benchmark_rejects_different_subjects_and_accepts_reordering (test_pipeline_regressions.EvaluationTests) ... ok
+test_invalid_labels_probabilities_and_single_class_rejected (test_pipeline_regressions.EvaluationTests) ... ok
+test_saved_classifier_decisions_used_instead_of_probability_threshold (test_pipeline_regressions.EvaluationTests) ... ok
+test_seed_is_reproducible_without_mutating_global_rng (test_pipeline_regressions.EvaluationTests) ... ok
+test_tied_scores_have_auc_half_in_all_valid_resamples (test_pipeline_regressions.EvaluationTests) ... ok
+test_all_segmentation_failures_return_nonzero (test_pipeline_regressions.PipelineStatusTests) ... ok
+test_cli_completed_with_errors_is_failure (test_pipeline_regressions.PipelineStatusTests) ... ok
+test_duplicate_subject_inputs_rejected (test_pipeline_regressions.PipelineStatusTests) ... ok
+test_paired_mri_saved_and_copy_failure_not_success (test_pipeline_regressions.PipelineStatusTests) ... ok
+test_spharm_all_failed_batch_raises_and_records_count (test_pipeline_regressions.PipelineStatusTests) ... ok
+test_spharm_subject_exception_returns_false (test_pipeline_regressions.PipelineStatusTests) ... ok
+test_missing_extra_and_duplicate_columns_rejected (test_pipeline_regressions.PredictorSchemaTests) ... ok
+test_new_features_require_compatible_model_before_loading_weights (test_pipeline_regressions.PredictorSchemaTests) ... ok
+test_nonfinite_and_wrong_width_rejected (test_pipeline_regressions.PredictorSchemaTests) ... ok
+test_reordered_named_columns_and_series_preserve_values (test_pipeline_regressions.PredictorSchemaTests) ... ok
+test_fixed_alignment_not_affected_by_other_subjects (test_pipeline_regressions.ReferenceTests) ... ok
+test_legacy_template_without_physical_scale_rejected (test_pipeline_regressions.ReferenceTests) ... ok
+test_reference_argument_parsed (test_pipeline_regressions.ReferenceTests) ... ok
+test_reference_metadata_preserves_scale_and_detects_tampering (test_pipeline_regressions.ReferenceTests) ... ok
+
+----------------------------------------------------------------------
+Ran 26 tests in 33.692s
+
+OK

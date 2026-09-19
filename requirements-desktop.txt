@@ -1,0 +1,7 @@
+-r requirements-training.txt
+PyQt6>=6.0
+vtk>=9.6
+nibabel>=5.0
+opencv-python>=4.8
+scikit-image>=0.21
+trimesh>=4.0

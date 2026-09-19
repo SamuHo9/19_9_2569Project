@@ -1,0 +1,7 @@
+__pycache__/
+venv/
+*.log
+slicer_batch_log.txt
+scratch/
+maintenance_backup_20260918/
+Model/validated_runs/

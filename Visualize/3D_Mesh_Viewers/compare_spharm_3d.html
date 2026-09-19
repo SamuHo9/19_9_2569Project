@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D SPHARM-PDM vs ICP Inspector | Hippocampal Shape Analysis</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Extracted Data -->
+  <script src="spharm_comparison_data.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --panel-bg: rgba(15, 23, 42, 0.86);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-coral: #f43f5e;
+      --accent-gold: #f59e0b;
+      --accent-purple: #8b5cf6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation Header */
+    header {
+      height: 58px;
+      background: rgba(11, 15, 25, 0.95);
+      border-bottom: 1px solid var(--panel-border);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 50;
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      color: white;
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.4);
+    }
+
+    .header-title h1 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #f8fafc;
+    }
+
+    .header-title p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .tab-btn {
+      padding: 6px 14px;
+      border-radius: 7px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: #1e293b;
+      color: #38bdf8;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stat-pill {
+      font-size: 11px;
+      padding: 4px 10px;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #38bdf8;
+      border-radius: 20px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-pill.tle {
+      background: rgba(244, 63, 94, 0.12);
+      border-color: rgba(244, 63, 94, 0.3);
+      color: #fb7185;
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .viewport-container {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      background: radial-gradient(circle at center, #111827 0%, #080c14 100%);
+    }
+
+    .viewport-divider {
+      width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(245, 158, 11, 0.5), transparent);
+      position: relative;
+      z-index: 20;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Viewport Header Overlay */
+    .viewport-header {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .tag-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+
+    .tag-icp {
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: #38bdf8;
+    }
+
+    .tag-spharm {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+    }
+
+    .tag-overlay {
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      color: #c084fc;
+    }
+
+    .viewport-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 5px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+
+    /* Floating Right Control Sidebar */
+    .control-panel {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      width: 325px;
+      max-height: calc(100vh - 90px);
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 16px;
+      z-index: 30;
+      overflow-y: auto;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .control-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    .control-panel::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.15);
+      border-radius: 4px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-label {
+      font-size: 11px;
+      color: #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    select, input[type="range"], input[type="text"] {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      color: #f1f5f9;
+      padding: 7px 10px;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input[type="text"]:focus {
+      border-color: var(--accent-gold);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 12px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 38px;
+      height: 20px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-gold);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 7px 10px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      color: #e2e8f0;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #334155;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Floating Stats Bar */
+    .stats-overlay {
+      position: absolute;
+      bottom: 14px;
+      left: 16px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 10px 16px;
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 11px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    .stat-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-val {
+      font-weight: 600;
+      color: #f8fafc;
+      font-size: 12px;
+    }
+
+    .stat-val.good {
+      color: #34d399;
+    }
+
+    /* Loading Overlay */
+    #loadingOverlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(9, 13, 22, 0.95);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(245, 158, 11, 0.2);
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Legend Bar */
+    .legend-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 10px;
+      border-radius: 5px;
+      background: linear-gradient(to right, #10b981, #eab308, #ef4444);
+      margin-top: 4px;
+      margin-bottom: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="logo-badge">SP</div>
+      <div class="header-title">
+        <h1>SPHARM-PDM vs ICP Shape Inspector</h1>
+        <p>Interactive 3D Comparison (123 Completed Cases)</p>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <button class="tab-btn active" id="btnModeOverlay" onclick="setViewMode('overlay')">🔄 ซ้อนทับในจอเดียว (Overlay)</button>
+      <button class="tab-btn" id="btnModeSplit" onclick="setViewMode('split')">🪟 จอคู่พร้อมกัน (Side-by-Side)</button>
+    </div>
+
+    <div class="header-right">
+      <div class="stat-pill" id="badgeCompleted">● ประมวลผลเสร็จแล้ว: 123 เคส</div>
+    </div>
+  </header>
+
+  <!-- Main Viewports -->
+  <main>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay">
+      <div class="spinner"></div>
+      <div style="font-size: 14px; font-weight: 500; color: #fbbf24;">กำลังเตรียมโมเดล 3D SPHARM vs ICP...</div>
+      <div style="font-size: 11px; color: #94a3b8;">High-precision spherical harmonics reconstruction</div>
+    </div>
+
+    <!-- Left / Overlay Viewport -->
+    <div class="viewport-container" id="vpLeft">
+      <div class="viewport-header" id="hdrLeft">
+        <div class="tag-title tag-overlay" id="tagLeftTitle">
+          <span>🔄 ซ้อนทับ ICP (Cyan Wire) vs SPHARM (Gold Surface)</span>
+        </div>
+        <div class="viewport-subtitle" id="tagLeftSubtitle">
+          ตรวจดูความกลมกลืนและการแนบสนิทของพื้นผิว SPHARM เทียบกับขอบเขต ICP
+        </div>
+      </div>
+    </div>
+
+    <div class="viewport-divider" id="vpDivider" style="display:none;"></div>
+
+    <!-- Right Viewport (Active in Split Mode) -->
+    <div class="viewport-container" id="vpRight" style="display:none;">
+      <div class="viewport-header">
+        <div class="tag-title tag-spharm">
+          <span>✨ SPHARM-PDM Mesh (Degree 12)</span>
+        </div>
+        <div class="viewport-subtitle">
+          พื้นผิวจำลองทางคณิตศาสตร์แบบเรียบเนียน (Spherical Harmonics)
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Stats HUD -->
+    <div class="stats-overlay">
+      <div class="stat-metric">
+        <span class="stat-label">Subject ปัจจุบัน</span>
+        <span class="stat-val" id="hudSubjName" style="color:#fbbf24;">sub-00373</span>
+      </div>
+      <div style="width: 1px; height: 26px; background: rgba(255,255,255,0.1);"></div>
+      <div class="stat-metric">
+        <span class="stat-label">ความคลาดเคลื่อนเฉลี่ย (Mean Surface Error)</span>
+        <span class="stat-val good" id="hudMeanError">0.0157 (~1 voxel)</span>
+      </div>
+      <div style="width: 1px; height: 26px; background: rgba(255,255,255,0.1);"></div>
+      <div class="stat-metric">
+        <span class="stat-label">ความคลาดเคลื่อน 95th Percentile</span>
+        <span class="stat-val" id="hudP95Error" style="color:#38bdf8;">0.0260</span>
+      </div>
+      <div style="width: 1px; height: 26px; background: rgba(255,255,255,0.1);"></div>
+      <div class="stat-metric">
+        <span class="stat-label">SPHARM Resolution</span>
+        <span class="stat-val" style="color:#f1f5f9;">1002 Vertices, 2000 Triangles</span>
+      </div>
+    </div>
+
+    <!-- Right Control Panel -->
+    <div class="control-panel">
+      <!-- Subject Selection -->
+      <div class="section-title">
+        <span>🎯 เลือกเคสคนไข้ (Subject)</span>
+      </div>
+
+      <div class="input-group">
+        <div class="input-label">
+          <span>รายชื่อเคสที่เสร็จแล้ว (123 เคส):</span>
+          <span id="lblSubjGroup" class="stat-pill" style="padding:2px 8px; font-size:10px;">Healthy</span>
+        </div>
+        <select id="selSubject" onchange="onSelectSubject(this.value)"></select>
+        <div class="btn-row" style="margin-top: 4px;">
+          <button class="btn" onclick="prevSubject()">◀ เคสก่อนหน้า</button>
+          <button class="btn" onclick="nextSubject()">เคสถัดไป ▶</button>
+        </div>
+      </div>
+
+      <!-- Display Layers -->
+      <div class="section-title" style="margin-top: 6px;">
+        <span>👁️ เลเยอร์พื้นผิว (Layers)</span>
+      </div>
+
+      <div class="toggle-row">
+        <span>แสดงโมเดล SPHARM-PDM (สีทอง)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkSPHARM" checked onchange="toggleSPHARM(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>แสดงโมเดล ICP อ้างอิง (สีฟ้า)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkICP" checked onchange="toggleICP(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>โหมดเส้นลวด ICP (ICP Wireframe)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkICPWireframe" checked onchange="toggleICPWireframe(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>โครงกริดทรงกลม (SPHARM Grid Wire)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkSPHARMWire" onchange="toggleSPHARMWire(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>แผนที่ความคลาดเคลื่อน (Error Heatmap)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkHeatmap" onchange="toggleHeatmap(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div id="heatmapLegendBox" style="display:none; font-size:10px; color:var(--text-muted);">
+        <div class="legend-bar"></div>
+        <div style="display:flex; justify-content:space-between;">
+          <span>0 mm (แนบสนิท)</span>
+          <span>0.02</span>
+          <span>0.05+ mm</span>
+        </div>
+      </div>
+
+      <!-- Material Properties -->
+      <div class="section-title" style="margin-top: 6px;">
+        <span>🎨 ปรับความโปร่งใส (Opacity)</span>
+      </div>
+
+      <div class="input-group">
+        <div class="input-label">
+          <span>ความทึบแสง SPHARM:</span>
+          <span id="lblOpacitySPHARM">0.85</span>
+        </div>
+        <input type="range" id="rngOpacitySPHARM" min="0.1" max="1.0" step="0.05" value="0.85" oninput="updateOpacitySPHARM(this.value)">
+      </div>
+
+      <div class="input-group">
+        <div class="input-label">
+          <span>ความทึบแสง ICP:</span>
+          <span id="lblOpacityICP">0.45</span>
+        </div>
+        <input type="range" id="rngOpacityICP" min="0.1" max="1.0" step="0.05" value="0.45" oninput="updateOpacityICP(this.value)">
+      </div>
+
+      <!-- Camera Section -->
+      <div class="section-title" style="margin-top: 6px;">
+        <span>🎮 ตัวควบคุมกล้อง (Camera)</span>
+      </div>
+
+      <div class="toggle-row">
+        <span>หมุนกล้องอัตโนมัติ (Auto-Rotate)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkAutoRotate" onchange="toggleAutoRotate(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" onclick="setPresetView('front')">หน้า</button>
+        <button class="btn" onclick="setPresetView('side')">ข้าง</button>
+        <button class="btn" onclick="setPresetView('top')">บน</button>
+        <button class="btn" onclick="resetCameras()">รีเซ็ต</button>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // State
+    let viewMode = 'overlay'; // 'overlay' or 'split'
+    let currentIdx = 0;
+    let autoRotate = false;
+    let showHeatmap = false;
+
+    // Three.js Objects
+    let sceneL, sceneR;
+    let cameraL, cameraR;
+    let rendererL, rendererR;
+    let controlsL, controlsR;
+
+    // Active Meshes
+    let currentMeshSPHARM_L = null;
+    let currentMeshICP_L = null;
+    let currentMeshSPHARM_R = null;
+    let currentMeshICP_R = null;
+
+    // Opacity
+    let opacSPHARM = 0.85;
+    let opacICP = 0.45;
+    let icpWire = true;
+    let spharmWire = false;
+
+    function init() {
+      const vpLeftEl = document.getElementById('vpLeft');
+      const vpRightEl = document.getElementById('vpRight');
+
+      // 1. Setup Scenes
+      sceneL = new THREE.Scene();
+      sceneR = new THREE.Scene();
+
+      // Subtle Grids
+      const gridL = new THREE.GridHelper(2.5, 20, 0x334155, 0x1e293b);
+      gridL.position.y = -1.2;
+      sceneL.add(gridL);
+
+      const gridR = new THREE.GridHelper(2.5, 20, 0x334155, 0x1e293b);
+      gridR.position.y = -1.2;
+      sceneR.add(gridR);
+
+      sceneL.add(new THREE.AxesHelper(0.6));
+      sceneR.add(new THREE.AxesHelper(0.6));
+
+      // 2. Setup Cameras
+      cameraL = new THREE.PerspectiveCamera(45, vpLeftEl.clientWidth / vpLeftEl.clientHeight, 0.1, 100);
+      cameraL.position.set(0, 1.2, 3.2);
+      cameraL.lookAt(0, 0, 0);
+
+      cameraR = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+      cameraR.position.set(0, 1.2, 3.2);
+      cameraR.lookAt(0, 0, 0);
+
+      // 3. Setup Renderers
+      rendererL = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      rendererL.setSize(vpLeftEl.clientWidth, vpLeftEl.clientHeight);
+      rendererL.setPixelRatio(window.devicePixelRatio);
+      vpLeftEl.appendChild(rendererL.domElement);
+
+      rendererR = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      rendererR.setSize(100, 100);
+      rendererR.setPixelRatio(window.devicePixelRatio);
+      vpRightEl.appendChild(rendererR.domElement);
+
+      // 4. Lighting
+      [sceneL, sceneR].forEach(s => {
+        const al = new THREE.AmbientLight(0xffffff, 0.75);
+        s.add(al);
+        const dl1 = new THREE.DirectionalLight(0xffffff, 0.85);
+        dl1.position.set(10, 20, 15);
+        s.add(dl1);
+        const dl2 = new THREE.DirectionalLight(0x38bdf8, 0.4);
+        dl2.position.set(-10, -15, -10);
+        s.add(dl2);
+      });
+
+      // 5. Controls
+      controlsL = new THREE.OrbitControls(cameraL, rendererL.domElement);
+      controlsL.enableDamping = true;
+      controlsL.dampingFactor = 0.05;
+
+      controlsR = new THREE.OrbitControls(cameraR, rendererR.domElement);
+      controlsR.enableDamping = true;
+      controlsR.dampingFactor = 0.05;
+
+      // Sync Controls
+      let updating = false;
+      controlsL.addEventListener('change', () => {
+        if (updating || viewMode !== 'split') return;
+        updating = true;
+        cameraR.position.copy(cameraL.position);
+        cameraR.rotation.copy(cameraL.rotation);
+        controlsR.target.copy(controlsL.target);
+        controlsR.update();
+        updating = false;
+      });
+
+      controlsR.addEventListener('change', () => {
+        if (updating || viewMode !== 'split') return;
+        updating = true;
+        cameraL.position.copy(cameraR.position);
+        cameraL.rotation.copy(cameraR.rotation);
+        controlsL.target.copy(controlsR.target);
+        controlsL.update();
+        updating = false;
+      });
+
+      window.addEventListener('resize', onWindowResize);
+
+      // Load Data
+      setupData();
+
+      // Animate
+      animate();
+    }
+
+    function setupData() {
+      if (!window.SPHARM_COMPARISON_DATA) {
+        document.getElementById('loadingOverlay').innerHTML = `
+          <div style="color:#ef4444; font-size:16px;">⚠️ ไม่พบไฟล์ spharm_comparison_data.js</div>
+          <div style="color:#94a3b8; font-size:12px;">กำลังประมวลผลข้อมูล โปรดรอสักครู่แล้วรีเฟรช</div>
+        `;
+        return;
+      }
+
+      const data = window.SPHARM_COMPARISON_DATA;
+      const subjects = data.subjects;
+
+      // Populate select
+      const sel = document.getElementById('selSubject');
+      sel.innerHTML = '';
+      subjects.forEach((s, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = `[${i+1}] ${s.short_name} (Err: ${s.mean_err.toFixed(4)})`;
+        sel.appendChild(opt);
+      });
+
+      document.getElementById('badgeCompleted').textContent = `● ประมวลผลเสร็จแล้ว: ${subjects.length} เคส`;
+
+      // Render first subject
+      renderSubject(0);
+
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    function renderSubject(idx) {
+      currentIdx = idx;
+      const s = window.SPHARM_COMPARISON_DATA.subjects[currentIdx];
+
+      // Update HUD
+      document.getElementById('hudSubjName').textContent = s.short_name;
+      document.getElementById('hudMeanError').textContent = `${s.mean_err} (~1 voxel)`;
+      document.getElementById('hudP95Error').textContent = s.p95_err;
+
+      const badge = document.getElementById('lblSubjGroup');
+      badge.textContent = s.group;
+      badge.className = (s.group === 'Healthy') ? 'stat-pill' : 'stat-pill tle';
+
+      // Clear existing
+      if (currentMeshSPHARM_L) sceneL.remove(currentMeshSPHARM_L);
+      if (currentMeshICP_L) sceneL.remove(currentMeshICP_L);
+      if (currentMeshSPHARM_R) sceneR.remove(currentMeshSPHARM_R);
+      if (currentMeshICP_R) sceneR.remove(currentMeshICP_R);
+
+      // 1. Build SPHARM Geometry
+      const geomS = new THREE.BufferGeometry();
+      geomS.setAttribute('position', new THREE.BufferAttribute(new Float32Array(s.v_spharm), 3));
+      geomS.setIndex(new THREE.BufferAttribute(new Uint16Array(s.f_spharm), 1));
+
+      // Vertex colors for heatmap
+      if (s.errors && s.errors.length > 0) {
+        const colors = [];
+        s.errors.forEach(e => {
+          // Heatmap: 0.0 (Green) -> 0.5 (Yellow) -> 1.0 (Red)
+          const col = new THREE.Color();
+          if (e < 0.5) {
+            col.setRGB(e * 2.0, 1.0, 0.1);
+          } else {
+            col.setRGB(1.0, 1.0 - (e - 0.5) * 2.0, 0.1);
+          }
+          colors.push(col.r, col.g, col.b);
+        });
+        geomS.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+      }
+      geomS.computeVertexNormals();
+
+      // 2. Build ICP Geometry
+      const geomI = new THREE.BufferGeometry();
+      geomI.setAttribute('position', new THREE.BufferAttribute(new Float32Array(s.v_icp), 3));
+      geomI.setIndex(new THREE.BufferAttribute(new Uint16Array(s.f_icp), 1));
+      geomI.computeVertexNormals();
+
+      // Materials
+      const matS = new THREE.MeshStandardMaterial({
+        color: showHeatmap ? 0xffffff : 0xf59e0b,
+        vertexColors: showHeatmap,
+        roughness: 0.25,
+        metalness: 0.15,
+        transparent: true,
+        opacity: opacSPHARM,
+        wireframe: spharmWire,
+        side: THREE.DoubleSide
+      });
+
+      const matI = new THREE.MeshStandardMaterial({
+        color: 0x06b6d4,
+        roughness: 0.4,
+        metalness: 0.1,
+        transparent: true,
+        opacity: opacICP,
+        wireframe: icpWire,
+        side: THREE.DoubleSide
+      });
+
+      if (viewMode === 'overlay') {
+        currentMeshSPHARM_L = new THREE.Mesh(geomS, matS);
+        currentMeshICP_L = new THREE.Mesh(geomI, matI);
+        sceneL.add(currentMeshSPHARM_L);
+        sceneL.add(currentMeshICP_L);
+      } else {
+        // Split mode: ICP on Left, SPHARM on Right
+        currentMeshICP_L = new THREE.Mesh(geomI, new THREE.MeshStandardMaterial({
+          color: 0x06b6d4, roughness: 0.35, side: THREE.DoubleSide
+        }));
+        sceneL.add(currentMeshICP_L);
+
+        currentMeshSPHARM_R = new THREE.Mesh(geomS, matS);
+        sceneR.add(currentMeshSPHARM_R);
+      }
+
+      applyVisibility();
+    }
+
+    function setViewMode(mode) {
+      viewMode = mode;
+      document.getElementById('btnModeOverlay').classList.toggle('active', mode === 'overlay');
+      document.getElementById('btnModeSplit').classList.toggle('active', mode === 'split');
+
+      const vpDivider = document.getElementById('vpDivider');
+      const vpRight = document.getElementById('vpRight');
+      const tagLeftTitle = document.getElementById('tagLeftTitle');
+      const tagLeftSubtitle = document.getElementById('tagLeftSubtitle');
+
+      if (mode === 'overlay') {
+        vpDivider.style.display = 'none';
+        vpRight.style.display = 'none';
+        tagLeftTitle.className = 'tag-title tag-overlay';
+        tagLeftTitle.innerHTML = '<span>🔄 ซ้อนทับ ICP (Cyan Wire) vs SPHARM (Gold Surface)</span>';
+        tagLeftSubtitle.textContent = 'ตรวจดูความกลมกลืนและการแนบสนิทของพื้นผิว SPHARM เทียบกับขอบเขต ICP';
+      } else {
+        vpDivider.style.display = 'block';
+        vpRight.style.display = 'block';
+        tagLeftTitle.className = 'tag-title tag-icp';
+        tagLeftTitle.innerHTML = '<span>🌐 ICP Aligned Mesh (Discrete Surface)</span>';
+        tagLeftSubtitle.textContent = 'พื้นผิวดั้งเดิมจาก Discrete Marching Cubes หลังทำ ICP Alignment';
+      }
+
+      onWindowResize();
+      renderSubject(currentIdx);
+    }
+
+    function applyVisibility() {
+      const showS = document.getElementById('chkSPHARM').checked;
+      const showI = document.getElementById('chkICP').checked;
+
+      if (currentMeshSPHARM_L) currentMeshSPHARM_L.visible = showS;
+      if (currentMeshICP_L) currentMeshICP_L.visible = showI;
+      if (currentMeshSPHARM_R) currentMeshSPHARM_R.visible = showS;
+    }
+
+    function onSelectSubject(val) {
+      renderSubject(parseInt(val));
+    }
+
+    function prevSubject() {
+      const N = window.SPHARM_COMPARISON_DATA.subjects.length;
+      currentIdx = (currentIdx - 1 + N) % N;
+      document.getElementById('selSubject').value = currentIdx;
+      renderSubject(currentIdx);
+    }
+
+    function nextSubject() {
+      const N = window.SPHARM_COMPARISON_DATA.subjects.length;
+      currentIdx = (currentIdx + 1) % N;
+      document.getElementById('selSubject').value = currentIdx;
+      renderSubject(currentIdx);
+    }
+
+    function toggleSPHARM(checked) {
+      applyVisibility();
+    }
+
+    function toggleICP(checked) {
+      applyVisibility();
+    }
+
+    function toggleICPWireframe(checked) {
+      icpWire = checked;
+      renderSubject(currentIdx);
+    }
+
+    function toggleSPHARMWire(checked) {
+      spharmWire = checked;
+      renderSubject(currentIdx);
+    }
+
+    function toggleHeatmap(checked) {
+      showHeatmap = checked;
+      document.getElementById('heatmapLegendBox').style.display = checked ? 'block' : 'none';
+      renderSubject(currentIdx);
+    }
+
+    function updateOpacitySPHARM(val) {
+      opacSPHARM = parseFloat(val);
+      document.getElementById('lblOpacitySPHARM').textContent = opacSPHARM.toFixed(2);
+      if (currentMeshSPHARM_L) currentMeshSPHARM_L.material.opacity = opacSPHARM;
+      if (currentMeshSPHARM_R) currentMeshSPHARM_R.material.opacity = opacSPHARM;
+    }
+
+    function updateOpacityICP(val) {
+      opacICP = parseFloat(val);
+      document.getElementById('lblOpacityICP').textContent = opacICP.toFixed(2);
+      if (currentMeshICP_L) currentMeshICP_L.material.opacity = opacICP;
+    }
+
+    function toggleAutoRotate(checked) {
+      autoRotate = checked;
+      controlsL.autoRotate = checked;
+      controlsR.autoRotate = checked;
+    }
+
+    function setPresetView(view) {
+      const d = 3.2;
+      [cameraL, cameraR].forEach(cam => {
+        if (view === 'front') cam.position.set(0, 0, d);
+        else if (view === 'side') cam.position.set(d, 0, 0);
+        else if (view === 'top') cam.position.set(0, d, 0);
+        cam.lookAt(0, 0, 0);
+      });
+      controlsL.update();
+      controlsR.update();
+    }
+
+    function resetCameras() {
+      cameraL.position.set(0, 1.2, 3.2);
+      cameraR.position.set(0, 1.2, 3.2);
+      controlsL.target.set(0, 0, 0);
+      controlsR.target.set(0, 0, 0);
+      controlsL.update();
+      controlsR.update();
+    }
+
+    function onWindowResize() {
+      const vpLeftEl = document.getElementById('vpLeft');
+      const vpRightEl = document.getElementById('vpRight');
+
+      cameraL.aspect = vpLeftEl.clientWidth / vpLeftEl.clientHeight;
+      cameraL.updateProjectionMatrix();
+      rendererL.setSize(vpLeftEl.clientWidth, vpLeftEl.clientHeight);
+
+      if (viewMode === 'split') {
+        cameraR.aspect = vpRightEl.clientWidth / vpRightEl.clientHeight;
+        cameraR.updateProjectionMatrix();
+        rendererR.setSize(vpRightEl.clientWidth, vpRightEl.clientHeight);
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controlsL.update();
+      if (viewMode === 'split') controlsR.update();
+      rendererL.render(sceneL, cameraL);
+      if (viewMode === 'split') rendererR.render(sceneR, cameraR);
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

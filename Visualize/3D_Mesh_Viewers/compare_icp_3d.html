@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D Interactive ICP Comparison | Hippocampal Shape Analysis</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Three.js and OrbitControls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Extracted Data -->
+  <script src="icp_comparison_data.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --panel-bg: rgba(15, 23, 42, 0.82);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-coral: #f43f5e;
+      --accent-gold: #f59e0b;
+      --accent-purple: #8b5cf6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Navigation Header */
+    header {
+      height: 58px;
+      background: rgba(11, 15, 25, 0.95);
+      border-bottom: 1px solid var(--panel-border);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      z-index: 50;
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      color: white;
+      box-shadow: 0 0 16px rgba(6, 182, 212, 0.4);
+    }
+
+    .header-title h1 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: #f8fafc;
+    }
+
+    .header-title p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid var(--panel-border);
+    }
+
+    .tab-btn {
+      padding: 6px 14px;
+      border-radius: 7px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: #1e293b;
+      color: #38bdf8;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .stat-pill {
+      font-size: 11px;
+      padding: 4px 10px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      border-radius: 20px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-pill.tle {
+      background: rgba(244, 63, 94, 0.12);
+      border-color: rgba(244, 63, 94, 0.3);
+      color: #fb7185;
+    }
+
+    /* Main Container with 2 Viewports */
+    main {
+      flex: 1;
+      display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .viewport-container {
+      flex: 1;
+      height: 100%;
+      position: relative;
+      background: radial-gradient(circle at center, #111827 0%, #080c14 100%);
+    }
+
+    .viewport-divider {
+      width: 2px;
+      background: linear-gradient(to bottom, transparent, rgba(6, 182, 212, 0.5), transparent);
+      position: relative;
+      z-index: 20;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Viewport Header Overlay */
+    .viewport-header {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .tag-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+
+    .tag-before {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+    }
+
+    .tag-after {
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: #38bdf8;
+    }
+
+    .viewport-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 5px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+
+    /* Floating Left Control Sidebar */
+    .control-panel {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      width: 320px;
+      max-height: calc(100vh - 90px);
+      background: var(--panel-bg);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--panel-border);
+      border-radius: 14px;
+      padding: 16px;
+      z-index: 30;
+      overflow-y: auto;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .control-panel::-webkit-scrollbar {
+      width: 4px;
+    }
+    .control-panel::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.15);
+      border-radius: 4px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .input-label {
+      font-size: 11px;
+      color: #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    select, input[type="range"], input[type="text"] {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      color: #f1f5f9;
+      padding: 7px 10px;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input[type="text"]:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .range-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 12px;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 38px;
+      height: 20px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 20px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-cyan);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(18px);
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 7px 10px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      color: #e2e8f0;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: #334155;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #06b6d4);
+      border: none;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0369a1, #0891b2);
+    }
+
+    /* Floating Stats Bar */
+    .stats-overlay {
+      position: absolute;
+      bottom: 14px;
+      left: 16px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: 12px;
+      padding: 10px 16px;
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 11px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    .stat-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-val {
+      font-weight: 600;
+      color: #f8fafc;
+      font-size: 12px;
+    }
+
+    .stat-val.good {
+      color: #34d399;
+    }
+
+    .stat-val.bad {
+      color: #fb7185;
+    }
+
+    /* Loading Overlay */
+    #loadingOverlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(9, 13, 22, 0.95);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid rgba(6, 182, 212, 0.2);
+      border-top-color: #06b6d4;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="logo-badge">ICP</div>
+      <div class="header-title">
+        <h1>Hippocampal Shape 3D Inspector</h1>
+        <p>Interactive Group-wise Alignment Comparison (Before vs After)</p>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <button class="tab-btn active" id="btnModeAll" onclick="setDisplayMode('all')">🌐 แสดงทุกเคส (All Cases)</button>
+      <button class="tab-btn" id="btnModeSingle" onclick="setDisplayMode('single')">🔍 ดูรายเคส (Single Case)</button>
+    </div>
+
+    <div class="header-right">
+      <div class="stat-pill" id="badgeHealthy">● Healthy: 212</div>
+      <div class="stat-pill tle" id="badgeTLE">● TLE: 169</div>
+    </div>
+  </header>
+
+  <!-- Main Viewports -->
+  <main>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay">
+      <div class="spinner"></div>
+      <div style="font-size: 14px; font-weight: 500; color: #38bdf8;">กำลังเตรียมโมเดล 3 มิติ 381 รายการ...</div>
+      <div style="font-size: 11px; color: #94a3b8;">Decimated geometry for smooth 60 FPS WebGL rendering</div>
+    </div>
+
+    <!-- Left Viewport: BEFORE ICP -->
+    <div class="viewport-container" id="vpBefore">
+      <div class="viewport-header">
+        <div class="tag-title tag-before">
+          <span>⚠️ ก่อนเข้า ICP (Native Space)</span>
+        </div>
+        <div class="viewport-subtitle">
+          พิกัดตามตำแหน่งผู้ป่วยในเครื่อง MRI (กระจัดกระจาย, ต่างมุมหมุน, ต่าง Origin)
+        </div>
+      </div>
+    </div>
+
+    <div class="viewport-divider"></div>
+
+    <!-- Right Viewport: AFTER ICP -->
+    <div class="viewport-container" id="vpAfter">
+      <div class="viewport-header">
+        <div class="tag-title tag-after">
+          <span>✨ หลังเข้า ICP (Aligned Space)</span>
+        </div>
+        <div class="viewport-subtitle">
+          จัดระเบียบแกนหลัก PCA + หมุนลู่เข้าหา Mean Shape Template ที่ Origin (0,0,0)
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating Stats HUD -->
+    <div class="stats-overlay">
+      <div class="stat-metric">
+        <span class="stat-label">ความแปรปรวน Centroid ก่อนเข้า</span>
+        <span class="stat-val bad" id="dispCentroidBefore">σ = 14.82 mm</span>
+      </div>
+      <div style="width: 1px; height: 26px; background: rgba(255,255,255,0.1);"></div>
+      <div class="stat-metric">
+        <span class="stat-label">ความแปรปรวน Centroid หลังเข้า</span>
+        <span class="stat-val good" id="dispCentroidAfter">σ = 0.000 mm (ลดลง 100%)</span>
+      </div>
+      <div style="width: 1px; height: 26px; background: rgba(255,255,255,0.1);"></div>
+      <div class="stat-metric">
+        <span class="stat-label">ICP Convergence</span>
+        <span class="stat-val" style="color:#38bdf8;">Round 3 (Δ = 2.1e-5)</span>
+      </div>
+    </div>
+
+    <!-- Right Control Panel -->
+    <div class="control-panel">
+      <div class="section-title">
+        <span>🎮 ตัวควบคุมมุมมอง (Camera)</span>
+      </div>
+
+      <div class="toggle-row">
+        <span>หมุนกล้องสองฝั่งพร้อมกัน (Sync Views)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkSyncCamera" checked onchange="toggleSyncCamera(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>หมุนกล้องอัตโนมัติ (Auto-Rotate)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkAutoRotate" onchange="toggleAutoRotate(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn" onclick="setPresetView('front')">หน้า (Ant)</button>
+        <button class="btn" onclick="setPresetView('side')">ข้าง (Lat)</button>
+        <button class="btn" onclick="setPresetView('top')">บน (Sup)</button>
+        <button class="btn" onclick="resetCameras()">รีเซ็ต</button>
+      </div>
+
+      <!-- Case Selection Section -->
+      <div class="section-title" style="margin-top: 6px;">
+        <span>🎯 เลือกดูเคส (Case Selection)</span>
+      </div>
+
+      <div class="input-group" id="cohortSizeGroup">
+        <div class="input-label">
+          <span>จำนวนเคสที่แสดงพร้อมกัน:</span>
+          <span id="lblCohortCount" style="color:#38bdf8; font-weight:600;">381 เคส (ทั้งหมด)</span>
+        </div>
+        <input type="range" id="rngCohortCount" min="10" max="381" step="10" value="381" oninput="updateCohortCount(this.value)">
+      </div>
+
+      <div class="input-group" id="singleCaseGroup" style="display:none;">
+        <div class="input-label">
+          <span>เลือก Subject รายบุคคล (<span id="lblCurrentIndex" style="color:#38bdf8; font-weight:bold;">1</span>/381):</span>
+          <span id="lblCurrentSubjGroup" class="stat-pill" style="padding:2px 8px; font-size:10px;">Healthy</span>
+        </div>
+        <input type="range" id="rngSubject" min="0" max="380" value="0" step="1" oninput="onSlideSubject(this.value)" style="margin-bottom: 4px;">
+        <select id="selSubject" onchange="onSelectSubject(this.value)"></select>
+        <div class="btn-row" style="margin-top: 4px;">
+          <button class="btn" onclick="prevSubject()">◀ เคสก่อนหน้า (←)</button>
+          <button class="btn" onclick="nextSubject()">เคสถัดไป (→) ▶</button>
+        </div>
+      </div>
+
+      <!-- Visibility Toggles -->
+      <div class="section-title" style="margin-top: 6px;">
+        <span>👁️ องค์ประกอบที่แสดง (Layers)</span>
+      </div>
+
+      <div class="toggle-row">
+        <span>Mean Shape Template (สีทอง)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkMeanShape" checked onchange="toggleMeanShape(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>จุดศูนย์กลางมวล (Centroid Dots)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkCentroids" checked onchange="toggleCentroids(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>กรอบ Bounding Box รวม</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkBBoxes" checked onchange="toggleBoundingBoxes(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>โครงเส้นลวด (Wireframe Mode)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="chkWireframe" onchange="toggleWireframe(this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <!-- Material Properties -->
+      <div class="section-title" style="margin-top: 6px;">
+        <span>🎨 ความโปร่งใส & สี (Styling)</span>
+      </div>
+
+      <div class="input-group">
+        <div class="input-label">
+          <span>ความโปร่งใส (Opacity):</span>
+          <span id="lblOpacity">0.28</span>
+        </div>
+        <input type="range" id="rngOpacity" min="0.05" max="1.0" step="0.05" value="0.28" oninput="updateOpacity(this.value)">
+      </div>
+
+      <div class="input-group">
+        <div class="input-label">
+          <span>ชุดสี (Color Mode):</span>
+        </div>
+        <select id="selColorMode" onchange="updateColorMode(this.value)">
+          <option value="group">แยกตามกลุ่ม (Healthy เขียว / TLE แดง)</option>
+          <option value="gradient">สีทองสว่าง (Single Tone Gold)</option>
+          <option value="cyan">สีฟ้านีออน (Neon Cyan)</option>
+        </select>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // Global State
+    let sceneBefore, sceneAfter;
+    let rendererBefore, rendererAfter;
+    let cameraBefore, cameraAfter;
+    let controlsBefore, controlsAfter;
+    let isSyncing = true;
+    let autoRotate = false;
+    let currentMode = 'all'; // 'all' or 'single'
+    let currentSubjectIdx = 0;
+    let activeCohortLimit = 381;
+    let currentOpacity = 0.28;
+    let currentColorMode = 'group';
+
+    // Meshes Collections
+    const meshesBefore = [];
+    const meshesAfter = [];
+    let meanTemplateMeshAfter = null;
+    let centroidsGroupBefore = null;
+    let centroidsGroupAfter = null;
+    let bboxBefore = null;
+    let bboxAfter = null;
+
+    // Colors
+    const COLOR_HEALTHY = 0x10b981; // Emerald Green
+    const COLOR_TLE = 0xf43f5e;     // Coral Crimson
+    const COLOR_GOLD = 0xf59e0b;    // Amber Gold
+    const COLOR_CYAN = 0x06b6d4;    // Neon Cyan
+
+    function init() {
+      const vpBeforeEl = document.getElementById('vpBefore');
+      const vpAfterEl = document.getElementById('vpAfter');
+
+      // 1. Setup Scenes
+      sceneBefore = new THREE.Scene();
+      sceneAfter = new THREE.Scene();
+
+      // Subtle Grid / Coordinate References
+      const gridHelperBefore = new THREE.GridHelper(80, 20, 0x334155, 0x1e293b);
+      gridHelperBefore.position.y = -20;
+      sceneBefore.add(gridHelperBefore);
+
+      const gridHelperAfter = new THREE.GridHelper(2.5, 20, 0x334155, 0x1e293b);
+      gridHelperAfter.position.y = -1.2;
+      sceneAfter.add(gridHelperAfter);
+
+      // Axes Helpers
+      sceneBefore.add(new THREE.AxesHelper(15));
+      sceneAfter.add(new THREE.AxesHelper(0.6));
+
+      // 2. Setup Cameras
+      const aspectB = vpBeforeEl.clientWidth / vpBeforeEl.clientHeight;
+      const aspectA = vpAfterEl.clientWidth / vpAfterEl.clientHeight;
+
+      cameraBefore = new THREE.PerspectiveCamera(45, aspectB, 0.1, 1000);
+      cameraAfter = new THREE.PerspectiveCamera(45, aspectA, 0.1, 1000);
+
+      // Camera Initial Positions
+      // Native space is centered around [-20, 4, -6], radius ~35mm
+      cameraBefore.position.set(-20, 30, 90);
+      cameraBefore.lookAt(-20, 4, -6);
+
+      // Aligned space is centered around [0, 0, 0], radius ~1.2 units
+      cameraAfter.position.set(0, 1.2, 3.2);
+      cameraAfter.lookAt(0, 0, 0);
+
+      // 3. Setup Renderers
+      rendererBefore = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      rendererBefore.setSize(vpBeforeEl.clientWidth, vpBeforeEl.clientHeight);
+      rendererBefore.setPixelRatio(window.devicePixelRatio);
+      vpBeforeEl.appendChild(rendererBefore.domElement);
+
+      rendererAfter = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      rendererAfter.setSize(vpAfterEl.clientWidth, vpAfterEl.clientHeight);
+      rendererAfter.setPixelRatio(window.devicePixelRatio);
+      vpAfterEl.appendChild(rendererAfter.domElement);
+
+      // 4. Setup Lighting
+      [sceneBefore, sceneAfter].forEach(scene => {
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight1.position.set(20, 40, 30);
+        scene.add(dirLight1);
+
+        const dirLight2 = new THREE.DirectionalLight(0x38bdf8, 0.4);
+        dirLight2.position.set(-20, -30, -20);
+        scene.add(dirLight2);
+      });
+
+      // 5. Controls
+      controlsBefore = new THREE.OrbitControls(cameraBefore, rendererBefore.domElement);
+      controlsBefore.target.set(-20, 4, -6);
+      controlsBefore.enableDamping = true;
+      controlsBefore.dampingFactor = 0.05;
+
+      controlsAfter = new THREE.OrbitControls(cameraAfter, rendererAfter.domElement);
+      controlsAfter.target.set(0, 0, 0);
+      controlsAfter.enableDamping = true;
+      controlsAfter.dampingFactor = 0.05;
+
+      // Synchronize Controls
+      setupCameraSync();
+
+      // Window resize
+      window.addEventListener('resize', onWindowResize);
+
+      // Build 3D Meshes from Data
+      loadDataIntoScenes();
+
+      // Animation Loop
+      animate();
+    }
+
+    function setupCameraSync() {
+      let isUpdating = false;
+
+      controlsBefore.addEventListener('change', () => {
+        if (!isSyncing || isUpdating) return;
+        isUpdating = true;
+        
+        // Sync rotation spherical angles
+        const offsetB = cameraBefore.position.clone().sub(controlsBefore.target);
+        const spherical = new THREE.Spherical().setFromVector3(offsetB);
+        
+        // Map distance proportionally
+        const distRatio = offsetB.length() / 90.0;
+        const targetDistAfter = distRatio * 3.2;
+        
+        const newOffsetAfter = new THREE.Vector3().setFromSpherical(
+          new THREE.Spherical(targetDistAfter, spherical.phi, spherical.theta)
+        );
+        cameraAfter.position.copy(controlsAfter.target).add(newOffsetAfter);
+        cameraAfter.lookAt(controlsAfter.target);
+        controlsAfter.update();
+        
+        isUpdating = false;
+      });
+
+      controlsAfter.addEventListener('change', () => {
+        if (!isSyncing || isUpdating) return;
+        isUpdating = true;
+        
+        const offsetA = cameraAfter.position.clone().sub(controlsAfter.target);
+        const spherical = new THREE.Spherical().setFromVector3(offsetA);
+        
+        const distRatio = offsetA.length() / 3.2;
+        const targetDistBefore = distRatio * 90.0;
+        
+        const newOffsetBefore = new THREE.Vector3().setFromSpherical(
+          new THREE.Spherical(targetDistBefore, spherical.phi, spherical.theta)
+        );
+        cameraBefore.position.copy(controlsBefore.target).add(newOffsetBefore);
+        cameraBefore.lookAt(controlsBefore.target);
+        controlsBefore.update();
+        
+        isUpdating = false;
+      });
+    }
+
+    function loadDataIntoScenes() {
+      if (!window.ICP_COMPARISON_DATA) {
+        document.getElementById('loadingOverlay').innerHTML = `
+          <div style="color:#ef4444; font-size:16px;">⚠️ ไม่พบข้อมูล icp_comparison_data.js</div>
+          <div style="color:#94a3b8; font-size:12px;">กำลังสร้างข้อมูล หรือเปิดไฟล์ในไดเรกทอรีเดียวกัน</div>
+        `;
+        return;
+      }
+
+      const data = window.ICP_COMPARISON_DATA;
+      const subjects = data.subjects;
+      const N = subjects.length;
+
+      // Populate Select Dropdown
+      const sel = document.getElementById('selSubject');
+      sel.innerHTML = '';
+      subjects.forEach((s, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = `[${idx+1}] ${s.short_name}`;
+        sel.appendChild(opt);
+      });
+
+      // Update Header Badges
+      document.getElementById('badgeHealthy').textContent = `● Healthy: ${data.stats.healthy_count}`;
+      document.getElementById('badgeTLE').textContent = `● TLE: ${data.stats.tle_count}`;
+      document.getElementById('dispCentroidBefore').textContent = `σ = ${data.stats.centroids_before.std_norm} mm`;
+      document.getElementById('dispCentroidAfter').textContent = `σ = ${data.stats.centroids_after.std_norm} (ลดลง >99.9%)`;
+
+      // Centroid Points Geometries
+      const cPtsBefore = [];
+      const cPtsAfter = [];
+      const cColorsBefore = [];
+      const cColorsAfter = [];
+
+      // 1. Create Meshes for Each Subject
+      subjects.forEach((s, i) => {
+        const colorHex = (s.group === 'Healthy') ? COLOR_HEALTHY : COLOR_TLE;
+
+        // Shared faces
+        const indices = new Uint16Array(s.faces);
+
+        // Before Geometry
+        const geomB = new THREE.BufferGeometry();
+        geomB.setAttribute('position', new THREE.BufferAttribute(new Float32Array(s.v_before), 3));
+        geomB.setIndex(new THREE.BufferAttribute(indices, 1));
+        geomB.computeVertexNormals();
+
+        const matB = new THREE.MeshStandardMaterial({
+          color: colorHex,
+          roughness: 0.35,
+          metalness: 0.1,
+          transparent: true,
+          opacity: currentOpacity,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const meshB = new THREE.Mesh(geomB, matB);
+        meshB.userData = { id: i, group: s.group, name: s.short_name };
+        sceneBefore.add(meshB);
+        meshesBefore.push(meshB);
+
+        // After Geometry
+        const geomA = new THREE.BufferGeometry();
+        geomA.setAttribute('position', new THREE.BufferAttribute(new Float32Array(s.v_after), 3));
+        geomA.setIndex(new THREE.BufferAttribute(indices, 1));
+        geomA.computeVertexNormals();
+
+        const matA = new THREE.MeshStandardMaterial({
+          color: colorHex,
+          roughness: 0.35,
+          metalness: 0.1,
+          transparent: true,
+          opacity: currentOpacity,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const meshA = new THREE.Mesh(geomA, matA);
+        meshA.userData = { id: i, group: s.group, name: s.short_name };
+        sceneAfter.add(meshA);
+        meshesAfter.push(meshA);
+
+        // Collect Centroid points
+        cPtsBefore.push(...s.c_before);
+        cPtsAfter.push(...s.c_after);
+        const cObj = new THREE.Color(colorHex);
+        cColorsBefore.push(cObj.r, cObj.g, cObj.b);
+        cColorsAfter.push(cObj.r, cObj.g, cObj.b);
+      });
+
+      // 2. Centroid Point Clouds
+      const cGeomB = new THREE.BufferGeometry();
+      cGeomB.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cPtsBefore), 3));
+      cGeomB.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cColorsBefore), 3));
+      const cMatB = new THREE.PointsMaterial({ size: 1.8, vertexColors: true, transparent: true, opacity: 0.9 });
+      centroidsGroupBefore = new THREE.Points(cGeomB, cMatB);
+      sceneBefore.add(centroidsGroupBefore);
+
+      const cGeomA = new THREE.BufferGeometry();
+      cGeomA.setAttribute('position', new THREE.BufferAttribute(new Float32Array(cPtsAfter), 3));
+      cGeomA.setAttribute('color', new THREE.BufferAttribute(new Float32Array(cColorsAfter), 3));
+      const cMatA = new THREE.PointsMaterial({ size: 0.04, vertexColors: true, transparent: true, opacity: 0.9 });
+      centroidsGroupAfter = new THREE.Points(cGeomA, cMatA);
+      sceneAfter.add(centroidsGroupAfter);
+
+      // 3. Mean Template Mesh (Right Viewport)
+      if (data.mean_template) {
+        const mt = data.mean_template;
+        const mtGeom = new THREE.BufferGeometry();
+        mtGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(mt.vertices), 3));
+        mtGeom.setIndex(new THREE.BufferAttribute(new Uint16Array(mt.faces), 1));
+        mtGeom.computeVertexNormals();
+
+        const mtMat = new THREE.MeshStandardMaterial({
+          color: COLOR_GOLD,
+          roughness: 0.2,
+          metalness: 0.2,
+          transparent: true,
+          opacity: 0.65,
+          wireframe: false,
+          depthWrite: true
+        });
+        meanTemplateMeshAfter = new THREE.Mesh(mtGeom, mtMat);
+        sceneAfter.add(meanTemplateMeshAfter);
+      }
+
+      // 4. Bounding Boxes
+      createBoundingBoxes(subjects);
+
+      // Hide Loading Overlay
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    function createBoundingBoxes(subjects) {
+      // Calculate Union Bounds
+      let bMinB = [Infinity, Infinity, Infinity], bMaxB = [-Infinity, -Infinity, -Infinity];
+      let bMinA = [Infinity, Infinity, Infinity], bMaxA = [-Infinity, -Infinity, -Infinity];
+
+      subjects.forEach(s => {
+        bMinB[0] = Math.min(bMinB[0], s.b_before[0]); bMaxB[0] = Math.max(bMaxB[0], s.b_before[1]);
+        bMinB[1] = Math.min(bMinB[1], s.b_before[2]); bMaxB[1] = Math.max(bMaxB[1], s.b_before[3]);
+        bMinB[2] = Math.min(bMinB[2], s.b_before[4]); bMaxB[2] = Math.max(bMaxB[2], s.b_before[5]);
+
+        bMinA[0] = Math.min(bMinA[0], s.b_after[0]); bMaxA[0] = Math.max(bMaxA[0], s.b_after[1]);
+        bMinA[1] = Math.min(bMinA[1], s.b_after[2]); bMaxA[1] = Math.max(bMaxA[1], s.b_after[3]);
+        bMinA[2] = Math.min(bMinA[2], s.b_after[4]); bMaxA[2] = Math.max(bMaxA[2], s.b_after[5]);
+      });
+
+      // Box Before
+      const sizeB = [bMaxB[0]-bMinB[0], bMaxB[1]-bMinB[1], bMaxB[2]-bMinB[2]];
+      const centB = [(bMinB[0]+bMaxB[0])/2, (bMinB[1]+bMaxB[1])/2, (bMinB[2]+bMaxB[2])/2];
+      const boxGeomB = new THREE.BoxGeometry(sizeB[0], sizeB[1], sizeB[2]);
+      bboxBefore = new THREE.BoxHelper(new THREE.Mesh(boxGeomB), 0xf59e0b);
+      bboxBefore.position.set(...centB);
+      sceneBefore.add(bboxBefore);
+
+      // Box After
+      const sizeA = [bMaxA[0]-bMinA[0], bMaxA[1]-bMinA[1], bMaxA[2]-bMinA[2]];
+      const centA = [(bMinA[0]+bMaxA[0])/2, (bMinA[1]+bMaxA[1])/2, (bMinA[2]+bMaxA[2])/2];
+      const boxGeomA = new THREE.BoxGeometry(sizeA[0], sizeA[1], sizeA[2]);
+      bboxAfter = new THREE.BoxHelper(new THREE.Mesh(boxGeomA), 0x06b6d4);
+      bboxAfter.position.set(...centA);
+      sceneAfter.add(bboxAfter);
+    }
+
+    // UI Interactive Functions
+    function setDisplayMode(mode) {
+      currentMode = mode;
+      document.getElementById('btnModeAll').classList.toggle('active', mode === 'all');
+      document.getElementById('btnModeSingle').classList.toggle('active', mode === 'single');
+      document.getElementById('cohortSizeGroup').style.display = (mode === 'all') ? 'flex' : 'none';
+      document.getElementById('singleCaseGroup').style.display = (mode === 'single') ? 'flex' : 'none';
+
+      applyVisibility();
+    }
+
+    function applyVisibility() {
+      if (currentMode === 'all') {
+        meshesBefore.forEach((m, idx) => {
+          m.visible = (idx < activeCohortLimit);
+          m.material.opacity = currentOpacity;
+        });
+        meshesAfter.forEach((m, idx) => {
+          m.visible = (idx < activeCohortLimit);
+          m.material.opacity = currentOpacity;
+        });
+      } else {
+        // Single Case Mode: Only selected is highlighted
+        meshesBefore.forEach((m, idx) => {
+          m.visible = (idx === currentSubjectIdx);
+          m.material.opacity = 0.95;
+        });
+        meshesAfter.forEach((m, idx) => {
+          m.visible = (idx === currentSubjectIdx);
+          m.material.opacity = 0.85;
+        });
+      }
+    }
+
+    function updateCohortCount(val) {
+      activeCohortLimit = parseInt(val);
+      document.getElementById('lblCohortCount').textContent = (activeCohortLimit >= 381) ? `381 เคส (ทั้งหมด)` : `${activeCohortLimit} เคส`;
+      applyVisibility();
+    }
+
+    function onSlideSubject(val) {
+      document.getElementById('selSubject').value = val;
+      onSelectSubject(val);
+    }
+
+    function onSelectSubject(idx) {
+      currentSubjectIdx = parseInt(idx);
+      const s = window.ICP_COMPARISON_DATA.subjects[currentSubjectIdx];
+      const badge = document.getElementById('lblCurrentSubjGroup');
+      badge.textContent = s.group;
+      badge.className = (s.group === 'Healthy') ? 'stat-pill' : 'stat-pill tle';
+      
+      const rng = document.getElementById('rngSubject');
+      if (rng) rng.value = currentSubjectIdx;
+      const lblIdx = document.getElementById('lblCurrentIndex');
+      if (lblIdx) lblIdx.textContent = currentSubjectIdx + 1;
+
+      applyVisibility();
+
+      // Pan cameras to focus on the selected subject
+      controlsBefore.target.set(...s.c_before);
+      controlsBefore.update();
+    }
+
+    function prevSubject() {
+      const N = window.ICP_COMPARISON_DATA.subjects.length;
+      currentSubjectIdx = (currentSubjectIdx - 1 + N) % N;
+      document.getElementById('selSubject').value = currentSubjectIdx;
+      onSelectSubject(currentSubjectIdx);
+    }
+
+    function nextSubject() {
+      const N = window.ICP_COMPARISON_DATA.subjects.length;
+      currentSubjectIdx = (currentSubjectIdx + 1) % N;
+      document.getElementById('selSubject').value = currentSubjectIdx;
+      onSelectSubject(currentSubjectIdx);
+    }
+
+    // Keyboard Arrow navigation for rapid inspection
+    window.addEventListener('keydown', (e) => {
+      if (currentMode === 'single') {
+        if (e.key === 'ArrowLeft') {
+          prevSubject();
+        } else if (e.key === 'ArrowRight') {
+          nextSubject();
+        }
+      }
+    });
+
+    function toggleSyncCamera(checked) {
+      isSyncing = checked;
+    }
+
+    function toggleAutoRotate(checked) {
+      autoRotate = checked;
+      controlsBefore.autoRotate = checked;
+      controlsAfter.autoRotate = checked;
+    }
+
+    function toggleMeanShape(checked) {
+      if (meanTemplateMeshAfter) meanTemplateMeshAfter.visible = checked;
+    }
+
+    function toggleCentroids(checked) {
+      if (centroidsGroupBefore) centroidsGroupBefore.visible = checked;
+      if (centroidsGroupAfter) centroidsGroupAfter.visible = checked;
+    }
+
+    function toggleBoundingBoxes(checked) {
+      if (bboxBefore) bboxBefore.visible = checked;
+      if (bboxAfter) bboxAfter.visible = checked;
+    }
+
+    function toggleWireframe(checked) {
+      meshesBefore.forEach(m => m.material.wireframe = checked);
+      meshesAfter.forEach(m => m.material.wireframe = checked);
+    }
+
+    function updateOpacity(val) {
+      currentOpacity = parseFloat(val);
+      document.getElementById('lblOpacity').textContent = currentOpacity.toFixed(2);
+      applyVisibility();
+    }
+
+    function updateColorMode(mode) {
+      currentColorMode = mode;
+      meshesBefore.forEach(m => {
+        m.material.color.setHex(getColorForMesh(m.userData.group, mode));
+      });
+      meshesAfter.forEach(m => {
+        m.material.color.setHex(getColorForMesh(m.userData.group, mode));
+      });
+    }
+
+    function getColorForMesh(group, mode) {
+      if (mode === 'gradient') return COLOR_GOLD;
+      if (mode === 'cyan') return COLOR_CYAN;
+      return (group === 'Healthy') ? COLOR_HEALTHY : COLOR_TLE;
+    }
+
+    function setPresetView(view) {
+      // Set views relative to current targets
+      const tB = controlsBefore.target;
+      const tA = controlsAfter.target;
+      const dB = 80;
+      const dA = 2.8;
+
+      if (view === 'front') {
+        cameraBefore.position.set(tB.x, tB.y, tB.z + dB);
+        cameraAfter.position.set(tA.x, tA.y, tA.z + dA);
+      } else if (view === 'side') {
+        cameraBefore.position.set(tB.x + dB, tB.y, tB.z);
+        cameraAfter.position.set(tA.x + dA, tA.y, tA.z);
+      } else if (view === 'top') {
+        cameraBefore.position.set(tB.x, tB.y + dB, tB.z);
+        cameraAfter.position.set(tA.x, tA.y + dA, tA.z);
+      }
+      cameraBefore.lookAt(tB);
+      cameraAfter.lookAt(tA);
+      controlsBefore.update();
+      controlsAfter.update();
+    }
+
+    function resetCameras() {
+      cameraBefore.position.set(-20, 30, 90);
+      controlsBefore.target.set(-20, 4, -6);
+      controlsBefore.update();
+
+      cameraAfter.position.set(0, 1.2, 3.2);
+      controlsAfter.target.set(0, 0, 0);
+      controlsAfter.update();
+    }
+
+    function onWindowResize() {
+      const vpBeforeEl = document.getElementById('vpBefore');
+      const vpAfterEl = document.getElementById('vpAfter');
+
+      cameraBefore.aspect = vpBeforeEl.clientWidth / vpBeforeEl.clientHeight;
+      cameraBefore.updateProjectionMatrix();
+      rendererBefore.setSize(vpBeforeEl.clientWidth, vpBeforeEl.clientHeight);
+
+      cameraAfter.aspect = vpAfterEl.clientWidth / vpAfterEl.clientHeight;
+      cameraAfter.updateProjectionMatrix();
+      rendererAfter.setSize(vpAfterEl.clientWidth, vpAfterEl.clientHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controlsBefore.update();
+      controlsAfter.update();
+      rendererBefore.render(sceneBefore, cameraBefore);
+      rendererAfter.render(sceneAfter, cameraAfter);
+    }
+
+    // Auto-init on load
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
